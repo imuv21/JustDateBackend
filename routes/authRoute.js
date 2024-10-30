@@ -1,7 +1,8 @@
 import express from 'express';
+import { signupValidator, loginValidator, updateProfileValidator } from '../middlewares/validation.js';
 import authedUser from '../middlewares/authedUser.js';
+import rateLimiter from '../middlewares/rateLimiter.js';
 import userCont from '../controllers/userCont.js';
-import { signupValidator, loginValidator } from '../middlewares/validation.js';
 const router = express.Router();
 
 // Public routes
@@ -9,11 +10,13 @@ router.post('/signup', signupValidator, userCont.userSignup);
 router.post('/verify-otp', userCont.verifyOtp);
 router.post('/login', loginValidator, userCont.userLogin);
 router.get('/logout', userCont.userLogout);
-router.delete('/delete-user', userCont.deleteUser);
 
 // Private routes
 router.use(authedUser);
-router.put('/update-profile', userCont.userProfileUpdate);
+router.put('/update-profile', updateProfileValidator, userCont.userProfileUpdate);
+router.put('/update-shows', userCont.updateShows);
+router.delete('/delete-user', userCont.deleteUser);
 
+// rateLimiter({ windowMs: 60 * 60 * 1000, max: 10 })
 
 export default router;

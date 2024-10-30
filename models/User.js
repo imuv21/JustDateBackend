@@ -1,19 +1,17 @@
 import mongoose from "mongoose";
 
-//Notification schema
-const notificationSchema = new mongoose.Schema({
-    type: {
-        type: String,
-        required: true,
+// Prompt Answer Schema
+const promptAnswerSchema = new mongoose.Schema({
+    questionId: {
+        type: mongoose.Schema.Types.ObjectId
     },
-    from: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'user',
-        required: true,
+    answer: {
+        type: String,
+        trim: true
     }
 });
 
-//Message schema
+// Message schema
 const messageSchema = new mongoose.Schema({
     sender: {
         type: mongoose.Schema.Types.ObjectId,
@@ -35,7 +33,7 @@ const messageSchema = new mongoose.Schema({
     }
 });
 
-//Link schema
+// Link schema
 const linkSchema = new mongoose.Schema({
     imdb: {
         url: {
@@ -44,7 +42,7 @@ const linkSchema = new mongoose.Schema({
         },
         isPublic: {
             type: Boolean,
-            default: false, 
+            default: false,
         },
     },
     insta: {
@@ -76,7 +74,19 @@ const linkSchema = new mongoose.Schema({
             type: Boolean,
             default: false,
         },
+    }
+});
+
+// Shows schema
+const showsSchema = new mongoose.Schema({
+    original_name: {
+        type: String,
+        trim: true
     },
+    poster_url: {
+        type: String,
+        trim: true
+    }
 });
 
 //User schema
@@ -101,10 +111,12 @@ const userSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
-    confirmPassword: {
+    interests: {
         type: String,
+        required: true,
         trim: true,
     },
+    shows: [showsSchema],
     isVerified: {
         type: Number,
         default: 0,
@@ -116,25 +128,18 @@ const userSchema = new mongoose.Schema({
     otpExpiry: {
         type: Date,
     },
-    matches: {
-        type: Array,
-        default: [],
-    },
-    voicePromptAnswers: {
-        type: Array,
-        default: [],
-    },
-    textPromptAnswers: {
-        type: Array,
-        default: [],
-    },
-    interests: {
-        type: String,
-        trim: true,
-    },
-    links: [linkSchema],
-    notifications: [notificationSchema],
+    chats: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+    }],
+    likes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+    }],
+    links: linkSchema,
     messages: [messageSchema],
+    voicePromptAnswers: [promptAnswerSchema],
+    textPromptAnswers: [promptAnswerSchema]
 });
 
 //Composite index on email and role
