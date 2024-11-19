@@ -2,9 +2,11 @@ import { check, body } from "express-validator";
 
 const signupValidator = [
     check("firstName").not().isEmpty()
-        .withMessage("First name is required"),
+        .withMessage("First name is required").isLength({ max: 50 })
+        .withMessage("First name must not exceed 50 characters"),
     check("lastName").not().isEmpty()
-        .withMessage("Last name is required"),
+        .withMessage("Last name is required").isLength({ max: 50 })
+        .withMessage("Last name must not exceed 50 characters"),
     check("email").isEmail()
         .normalizeEmail({
             gmail_remove_dots: true
@@ -39,7 +41,9 @@ const loginValidator = [
 ];
 
 const updateProfileValidator = [
-    check("interests").not().isEmpty().withMessage("Interests are required"),
+    check("interests").not().isEmpty()
+        .withMessage("Interests are required").isLength({ max: 100 })
+        .withMessage("Interests must not exceed 100 characters"),
     check("links.imdb.url").optional({ checkFalsy: true }).matches(/^(https?:\/\/)?(www\.)?imdb\.com\/.*/i)
         .withMessage("Invalid IMDb URL format"),
     check("links.insta.url").optional({ checkFalsy: true }).matches(/^(https?:\/\/)?(www\.)?instagram\.com\/.*/i)
@@ -50,4 +54,23 @@ const updateProfileValidator = [
         .withMessage("Invalid Spotify URL format"),
 ];
 
-export { signupValidator, loginValidator, updateProfileValidator };
+const detailsValidator = [
+
+    check("age").not().isEmpty().withMessage("Age is required").isInt({ min: 18 }).withMessage("Go watch pogo kiddo!"),
+
+    check("gender").not().isEmpty().withMessage("Gender is required").isIn(['Male', 'Female']).withMessage("Gender must be either Male or Female"),
+
+    check("height").isFloat({ min: 20 }).withMessage("Please! Your are not that short"),
+
+    check("location").not().isEmpty().withMessage("Location is required"),
+
+    check("bodyType").not().isEmpty().withMessage("Body type is required").isIn(['Skinny', 'Average', 'Curvy', 'Healthy']).withMessage("Invalid input"),
+
+    check("drinking").not().isEmpty().withMessage("Drinking is required").isIn(['Yes', 'No']).withMessage("Invalid input"),
+
+    check("smoking").not().isEmpty().withMessage("Smoking is required").isIn(['Yes', 'No']).withMessage("Invalid input"),
+
+    check("relationshipStatus").not().isEmpty().withMessage("Relationship status is required").isIn(['Single', 'Separated', 'Widowed']).withMessage("Invalid input"),
+];
+
+export { signupValidator, loginValidator, updateProfileValidator, detailsValidator };

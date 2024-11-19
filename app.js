@@ -11,17 +11,14 @@ export const app = express();
 
 const DATABASE_URL = process.env.DATABASE_URL
 
-// Security Headers
-app.use(helmet());
-
 // CORS
-const allowedOrigins = [
+export const allowedOrigins = [
     "http://localhost:5173",
     "https://justdate.netlify.app"
 ];
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -29,12 +26,18 @@ app.use(cors({
     },
     methods: "GET,POST,PUT,PATCH,DELETE",
     credentials: true
-}));
+};
+
+// Security Headers
+app.use(helmet());
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
 
 // Rate Limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 450 // limit each IP to 450 requests per windowMs
+    max: 300 // limit each IP to 450 requests per windowMs
 });
 app.use(limiter);
 

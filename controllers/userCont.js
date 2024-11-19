@@ -79,7 +79,7 @@ class userCont {
                         await sendMail(newUser.email, 'Verify your email', msg);
                         return res.status(201).json({ status: "success", message: `Please verify your email using the OTP sent to ${newUser.email}` });
                     } catch (error) {
-                        return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+                        return res.status(500).json({ status: "failed", message: "Server error. Please try again later.", error });
                     }
                 }
             } else {
@@ -167,7 +167,8 @@ class userCont {
                             isVerified: user.isVerified,
                             chats: user.chats,
                             likes: user.likes,
-                            links: user.links
+                            links: user.links,
+                            details: user.details,
                         };
                         return res.status(200).json({ status: "success", message: "User logged in successfully", token: token, user: userResponse });
                     } else {
@@ -218,6 +219,33 @@ class userCont {
         }
     }
 
+    static detailsUpdate = async (req, res) => {
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ success: false, errors: errors.array() });
+            }
+            const { age, gender, height, location, bodyType, drinking, smoking, relationshipStatus } = req.body;
+            const user = await userModel.findById(req.user._id);
+            if (!user) {
+                return res.status(404).json({ status: "failed", message: "User not found" });
+            }
+            const updateData = { age, gender, location, bodyType, drinking, smoking, relationshipStatus };
+            if (height) {
+                updateData.height = height;
+            }
+            const updatedUser = await userModel.findByIdAndUpdate(req.user._id, { $set: { details: updateData } }, { new: true });
+
+            if (updatedUser) {
+                return res.status(200).json({ status: "success", message: "User details updated successfully", user: updatedUser });
+            } else {
+                return res.status(404).json({ status: "failed", message: "Something went wrong" });
+            }
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
     static updateShows = async (req, res) => {
         try {
             const { shows } = req.body;
@@ -240,6 +268,81 @@ class userCont {
             res.status(500).json({ message: "Server error" });
         }
     }
+
+    static discover = async (req, res) => {
+        try {
+            const { minAge, maxAge, gender, bodyType, location, page = 1, size = 20 } = req.query;
+            const currentUserId = req.user._id;
+            const skip = (page - 1) * size;
+
+            const currentUser = await userModel.findById(currentUserId).select("matches").lean();
+            const matchedUserIds = currentUser?.matches || [];
+
+            let filterConditions = {
+                _id: { $ne: currentUserId, $nin: matchedUserIds },
+                "details.age": { $exists: true, $ne: null },
+                "details.height": { $exists: true, $ne: null },
+                "details.bodyType": { $exists: true, $ne: "" },
+                "interests": { $exists: true, $ne: "" }
+            };
+
+            if (minAge || maxAge) {
+                filterConditions["details.age"] = {};
+                if (minAge) filterConditions["details.age"].$gte = parseInt(minAge);
+                if (maxAge) filterConditions["details.age"].$lte = parseInt(maxAge);
+            }
+            if (gender) filterConditions["details.gender"] = gender;
+            if (bodyType) filterConditions["details.bodyType"] = bodyType;
+            if (location) filterConditions["details.location"] = location;
+
+            const totalUsers = await userModel.countDocuments(filterConditions);
+            const people = await userModel.find(filterConditions).skip(skip).limit(parseInt(size));
+            return res.status(200).json({ status: "success", people, page, size, totalPages: Math.ceil(totalUsers / size), totalResults: totalUsers });
+
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
+    static like = async (req, res) => {
+        try {
+            const { likedUserId } = req.params;
+            const currentUserId = req.user._id;
+            const currentUser = await userModel.findById(currentUserId);
+            const likedUser = await userModel.findById(likedUserId);
+
+            if (!currentUser || !likedUser) {
+                return res.status(404).json({ status: "failed", message: "User not found" });
+            }
+            if (likedUser.matches.includes(currentUserId)) {
+                return res.status(400).json({ status: "failed", message: "This is already a match!" });
+            }
+
+            if (!currentUser.likes.includes(likedUserId) && !likedUser.likes.includes(currentUserId)) {
+                likedUser.likes.push(currentUserId);
+            } else if (currentUser.likes.includes(likedUserId)) {
+                currentUser.likes = currentUser.likes.filter(id => id.toString() !== likedUserId.toString());
+                if (!currentUser.matches.includes(likedUserId)) {
+                    currentUser.matches.push(likedUserId);
+                }
+                if (!likedUser.matches.includes(currentUserId)) {
+                    likedUser.matches.push(currentUserId);
+                }
+            } else {
+                return res.status(400).json({ status: "failed", message: "You have already liked the user" });
+            }
+
+            await currentUser.save();
+            await likedUser.save();
+            const message = currentUser.matches.includes(likedUserId) ? "It's a match!" : "Liked successfully";
+            return res.status(200).json({ status: "success", message });
+
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
 }
 
 export default userCont;
