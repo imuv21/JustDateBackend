@@ -20,6 +20,12 @@ router.put('/update-shows', userCont.updateShows);
 router.delete('/delete-user', userCont.deleteUser);
 router.post('/like/:likedUserId', userCont.like);
 
+router.post('/send-message', userCont.sendMessages);
+router.get('/get-message/:senderId/:receiverId', userCont.getMessages);
+
+router.get('/get-match-users', userCont.matchUsers);
+router.get('/get-like-users', userCont.likeUsers);
+
 // rateLimiter({ windowMs: 60 * 60 * 1000, max: 10 })
 
 export default router;

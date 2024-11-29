@@ -9,6 +9,7 @@ const NODE_ENV = process.env.NODE_ENV;
 const server = createServer(app);
 
 const io = new Server(server, {
+    path: "/socket.io",
     cors: {
         origin: function (origin, callback) {
             if (!origin || allowedOrigins.includes(origin)) {
@@ -25,35 +26,16 @@ app.set('socketio', io);
 
 // Socket.io
 io.on('connection', (socket) => {
-    console.log(`User connected with id ${socket.id}`);
-
-    // User joins a room with their userId and receiverId (both are needed to identify the chat)
     socket.on('joinRoom', ({ senderId, receiverId }) => {
-        const roomId = [senderId, receiverId].sort().join('_'); // Ensure the room ID is the same for both users
+        const roomId = [senderId, receiverId].sort().join('_');
         socket.join(roomId);
-        console.log(`User ${senderId} joined room: ${roomId}`);
     });
-
-    // Handle sending and broadcasting a message
     socket.on('newMessage', (message) => {
         const { senderId, receiverId, content } = message;
         const roomId = [senderId, receiverId].sort().join('_');
         const timestamp = new Date().toISOString();
-
-        const msgPayload = {
-            sender: { _id: senderId },
-            receiver: { _id: receiverId },
-            content,
-            timestamp,
-        };
-
-        // Emit the message to all clients in the room (sender and receiver)
+        const msgPayload = { sender: { _id: senderId }, receiver: { _id: receiverId }, content, timestamp };
         io.to(roomId).emit('newMessage', msgPayload);
-        console.log(`Message from ${senderId} to ${receiverId}: ${content}`);
-    });
-
-    socket.on('disconnect', () => {
-        console.log(`User disconnected with id ${socket.id}`);
     });
 });
 

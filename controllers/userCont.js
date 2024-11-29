@@ -156,6 +156,7 @@ class userCont {
                     const isMatch = await bcrypt.compare(password, user.password);
                     if ((user.email === email) && isMatch) {
                         const token = jwt.sign({ userID: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '1d' });
+    
                         const userResponse = {
                             _id: user._id,
                             firstName: user.firstName,
@@ -269,6 +270,8 @@ class userCont {
         }
     }
 
+    //social conts
+
     static discover = async (req, res) => {
         try {
             const { minAge, maxAge, gender, bodyType, location, page = 1, size = 20 } = req.query;
@@ -328,13 +331,40 @@ class userCont {
                 if (!likedUser.matches.includes(currentUserId)) {
                     likedUser.matches.push(currentUserId);
                 }
+
+                // Start 10-minute timer to check for messages
+                setTimeout(async () => {
+                    try {
+                        const updatedCurrentUser = await userModel.findById(currentUserId);
+                        const messageExists = updatedCurrentUser.messages.some(
+                            msg =>
+                                msg.sender.toString() === currentUserId.toString() &&
+                                msg.receiver.toString() === likedUserId.toString()
+                        );
+
+                        if (!messageExists) {
+                            updatedCurrentUser.matches = updatedCurrentUser.matches.filter(
+                                id => id.toString() !== likedUserId.toString()
+                            );
+                            const updatedLikedUser = await userModel.findById(likedUserId);
+                            updatedLikedUser.matches = updatedLikedUser.matches.filter(
+                                id => id.toString() !== currentUserId.toString()
+                            );
+                            await updatedCurrentUser.save();
+                            await updatedLikedUser.save();
+                        }
+                    } catch (err) {
+                        console.error("Error in timeout function:", err);
+                    }
+                }, 1 * 60 * 1000); // 1 minutes
+
             } else {
                 return res.status(400).json({ status: "failed", message: "You have already liked the user" });
             }
 
             await currentUser.save();
             await likedUser.save();
-            const message = currentUser.matches.includes(likedUserId) ? "It's a match!" : "Liked successfully";
+            const message = currentUser.matches.includes(likedUserId) ? "It's a match! Make sure to send a message within 5 minutes to keep the connection alive." : "Liked successfully";
             return res.status(200).json({ status: "success", message });
 
         } catch (error) {
@@ -343,6 +373,105 @@ class userCont {
         }
     }
 
+    static matchUsers = async (req, res) => {
+        try {
+            const user = await userModel.findById(req.user._id);
+            if (!user) {
+                return res.status(404).json({ status: "failed", message: "User not found" });
+            }
+            const matchesData = await userModel.find({ _id: { $in: user.matches } },
+                {
+                    firstName: 1,
+                    lastName: 1,
+                    interests: 1,
+                    'details.age': 1,
+                    'details.height': 1,
+                    'details.bodyType': 1,
+                }
+            );
+            return res.status(200).json({ status: "success", matchusers: matchesData });
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
+    static likeUsers = async (req, res) => {
+        try {
+            const user = await userModel.findById(req.user._id);
+            if (!user) {
+                return res.status(404).json({ status: "failed", message: "User not found" });
+            }
+            const likesData = await userModel.find({ _id: { $in: user.likes } },
+                {
+                    firstName: 1,
+                    lastName: 1,
+                    interests: 1,
+                    'details.age': 1,
+                    'details.height': 1,
+                    'details.bodyType': 1,
+                    likes: 1,
+                }
+            );
+            return res.status(200).json({ status: "success", likeusers: likesData });
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
+    static sendMessages = async (req, res) => {
+        try {
+            const { senderId, receiverId, content } = req.body;
+            if (!senderId || !receiverId || !content) {
+                return res.status(400).json({ status: "failed", message: "All fields are required." });
+            }
+
+            const message = { sender: senderId, receiver: receiverId, content, timestamp: new Date() };
+            const senderUpdate = await userModel.findByIdAndUpdate(senderId, { $push: { messages: message } }, { new: true });
+
+            if (!senderUpdate) {
+                return res.status(404).json({ status: "failed", message: "Sender not found." });
+            }
+
+            const io = req.app.get('socketio');
+            const roomId = [senderId, receiverId].sort().join('_');
+            io.to(roomId).emit('newMessage', { sender: { _id: senderId }, receiver: { _id: receiverId }, content, timestamp: message.timestamp });
+
+            return res.status(200).json({ status: "success", message: "Message sent" });
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
+
+    static getMessages = async (req, res) => {
+        try {
+            const { senderId, receiverId } = req.params;
+            if (!senderId || !receiverId) {
+                return res.status(400).json({ status: "failed", message: "All fields are required." });
+            }
+
+            const senderMessages = await userModel.findById(senderId).select('messages').populate('messages.sender messages.receiver', 'firstName lastName email');
+            const receiverMessages = await userModel.findById(receiverId).select('messages').populate('messages.sender messages.receiver', 'firstName lastName email');
+            const receiver = await userModel.findById(receiverId).select('firstName lastName isVerified');
+
+            if (!senderMessages || !receiverMessages) {
+                return res.status(404).json({ status: "failed", message: "Sender or receiver not found." });
+            }
+
+            const combinedMessages = [...senderMessages.messages, ...receiverMessages.messages];
+            const filteredMessages = combinedMessages.filter(
+                message =>
+                    (message.sender._id.toString() === senderId && message.receiver._id.toString() === receiverId) ||
+                    (message.sender._id.toString() === receiverId && message.receiver._id.toString() === senderId)
+            );
+
+            const uniqueMessages = Array.from(new Set(filteredMessages.map(msg => msg._id.toString()))).map(id => filteredMessages.find(msg => msg._id.toString() === id));
+            uniqueMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            return res.status(200).json({ status: "success", chat: uniqueMessages, receiver: receiver });
+        } catch (error) {
+            return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+        }
+    }
 }
 
 export default userCont;
