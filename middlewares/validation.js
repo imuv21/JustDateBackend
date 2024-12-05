@@ -42,7 +42,7 @@ const loginValidator = [
 
 const updateProfileValidator = [
     check("interests").not().isEmpty()
-        .withMessage("Interests are required").isLength({ max: 100 })
+        .withMessage("Interests are required").isLength({ max: 70 })
         .withMessage("Interests must not exceed 100 characters"),
     check("links.imdb.url").optional({ checkFalsy: true }).matches(/^(https?:\/\/)?(www\.)?imdb\.com\/.*/i)
         .withMessage("Invalid IMDb URL format"),
