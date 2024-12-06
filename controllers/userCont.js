@@ -156,7 +156,7 @@ class userCont {
                     const isMatch = await bcrypt.compare(password, user.password);
                     if ((user.email === email) && isMatch) {
                         const token = jwt.sign({ userID: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '1d' });
-    
+
                         const userResponse = {
                             _id: user._id,
                             firstName: user.firstName,
@@ -418,29 +418,81 @@ class userCont {
         }
     }
 
+    // static sendMessages = async (req, res) => {
+    //     try {
+    //         const { senderId, receiverId, content } = req.body;
+    //         if (!senderId || !receiverId || !content) {
+    //             return res.status(400).json({ status: "failed", message: "All fields are required." });
+    //         }
+
+    //         const message = { sender: senderId, receiver: receiverId, content, timestamp: new Date() };
+    //         const senderUpdate = await userModel.findByIdAndUpdate(senderId, { $push: { messages: message } }, { new: true });
+
+    //         if (!senderUpdate) {
+    //             return res.status(404).json({ status: "failed", message: "Sender not found." });
+    //         }
+
+    //         const io = req.app.get('socketio');
+    //         const roomId = [senderId, receiverId].sort().join('_');
+    //         io.to(roomId).emit('newMessage', { sender: { _id: senderId }, receiver: { _id: receiverId }, content, timestamp: message.timestamp });
+
+    //         return res.status(200).json({ status: "success", message: "Message sent" });
+    //     } catch (error) {
+    //         return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
+    //     }
+    // }
+
     static sendMessages = async (req, res) => {
         try {
             const { senderId, receiverId, content } = req.body;
+
             if (!senderId || !receiverId || !content) {
                 return res.status(400).json({ status: "failed", message: "All fields are required." });
             }
 
             const message = { sender: senderId, receiver: receiverId, content, timestamp: new Date() };
-            const senderUpdate = await userModel.findByIdAndUpdate(senderId, { $push: { messages: message } }, { new: true });
 
-            if (!senderUpdate) {
+            // Find the sender and their messages with the receiver
+            const sender = await userModel.findById(senderId);
+
+            if (!sender) {
                 return res.status(404).json({ status: "failed", message: "Sender not found." });
             }
 
+            // Filter messages between sender and receiver
+            const messagesBetweenUsers = sender.messages.filter(
+                (msg) => msg.receiver.toString() === receiverId || msg.sender.toString() === receiverId
+            );
+
+            // Check if the messages count exceeds the limit (10)
+            if (messagesBetweenUsers.length >= 10) {
+                // Find the oldest message and remove it
+                const oldestMessageIndex = sender.messages.findIndex(
+                    (msg) => msg.receiver.toString() === receiverId || msg.sender.toString() === receiverId
+                );
+
+                if (oldestMessageIndex !== -1) {
+                    sender.messages.splice(oldestMessageIndex, 1);
+                }
+            }
+
+            // Add the new message
+            sender.messages.push(message);
+
+            // Save the updated sender
+            await sender.save();
+
+            // Emit the new message using Socket.IO
             const io = req.app.get('socketio');
             const roomId = [senderId, receiverId].sort().join('_');
             io.to(roomId).emit('newMessage', { sender: { _id: senderId }, receiver: { _id: receiverId }, content, timestamp: message.timestamp });
 
             return res.status(200).json({ status: "success", message: "Message sent" });
         } catch (error) {
+            console.error(error);
             return res.status(500).json({ status: "failed", message: "Server error. Please try again later." });
         }
-    }
+    };
 
     static getMessages = async (req, res) => {
         try {
