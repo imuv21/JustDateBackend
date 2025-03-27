@@ -143,8 +143,8 @@ const userSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
-        trim: true,
         unique: true,
+        trim: true,
     },
     password: {
         type: String,
@@ -160,7 +160,7 @@ const userSchema = new mongoose.Schema({
         default: 0,
     },
     otp: {
-        type: String,
+        type: Number,
         trim: true,
     },
     otpExpiry: {
