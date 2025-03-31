@@ -9,7 +9,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 export const app = express();
 
-const DATABASE_URL = process.env.DATABASE_URL
+const DATABASE_URL = process.env.DATABASE_URL;
+
+
+// Security Headers
+app.use(helmet());
+
 
 // CORS
 export const allowedOrigins = [
@@ -24,15 +29,13 @@ const corsOptions = {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    methods: "GET,POST,PUT,PATCH,DELETE",
+    methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     credentials: true
 };
 
-// Security Headers
-app.use(helmet());
-
 // Apply CORS middleware
 app.use(cors(corsOptions));
+
 
 // Rate Limiting
 const limiter = rateLimit({
