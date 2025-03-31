@@ -217,7 +217,7 @@ class userCont {
         }
         try {
             const { email, otp, newPassword } = req.body;
-            const user = await User.findOne({ email });
+            const user = await userModel.findOne({ email });
             if (!user) {
                 return res.status(404).json({ status: "failed", message: "User doesn't exist!" });
             }
@@ -406,7 +406,7 @@ class userCont {
                     } catch (err) {
                         console.error("Error in timeout function:", err);
                     }
-                }, 10 * 60 * 1000); // 1 minutes
+                }, 1 * 60 * 1000); // 10 minutes
 
             } else {
                 return res.status(400).json({ status: "failed", message: "You have already liked the user!" });
